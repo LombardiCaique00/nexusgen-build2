@@ -1,0 +1,97 @@
+name: Build Godot Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install unzip
+      run: sudo apt-get update && sudo apt-get install unzip -y
+
+    - name: Create project directory
+      run: mkdir project
+
+    - name: Extract Godot Project
+      run: unzip game-source-project.zip -d project
+
+    - name: List Extracted Files
+      run: ls -R project
+
+    - name: Find project.godot
+      run: find project -name "project.godot"
+
+    - name: Download Godot
+      run: |
+        wget https://downloads.tuxfamily.org/godotengine/4.2.2/Godot_v4.2.2-stable_linux.x86_64.zip
+        unzip Godot_v4.2.2-stable_linux.x86_64.zip
+        chmod +x Godot_v4.2.2-stable_linux.x86_64
+
+    - name: Download Godot Export Templates
+      run: |
+        wget https://downloads.tuxfamily.org/godotengine/4.2.2/Godot_v4.2.2-stable_export_templates.tpz
+        mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
+        unzip Godot_v4.2.2-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/4.2.2.stable
+
+    - name: Install Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Accept Android Licenses
+      run: yes | sdkmanager --licenses
+
+    - name: Install Android Build Tools
+      run: |
+        sdkmanager "platform-tools"
+        sdkmanager "platforms;android-34"
+        sdkmanager "build-tools;34.0.0"
+
+    - name: Debug Export Presets
+      run: |
+        PROJECT_PATH=$(find project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_PATH")
+
+        echo "PROJECT PATH:"
+        echo "$PROJECT_PATH"
+
+        echo "PROJECT DIR:"
+        echo "$PROJECT_DIR"
+
+        echo "EXPORT PRESETS CONTENT:"
+        cat "$PROJECT_DIR/export_presets.cfg"
+
+    - name: Create Build Folder
+      run: |
+        PROJECT_PATH=$(find project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_PATH")
+
+        mkdir -p "$PROJECT_DIR/build/android"
+
+    - name: Export APK
+      run: |
+        PROJECT_PATH=$(find project -name "project.godot" | head -n 1)
+        PROJECT_DIR=$(dirname "$PROJECT_PATH")
+
+        echo "Exporting from:"
+        echo "$PROJECT_DIR"
+
+        ./Godot_v4.2.2-stable_linux.x86_64 \
+        --verbose \
+        --headless \
+        --path "$PROJECT_DIR" \
+        --export-debug "Android" "$PROJECT_DIR/build/android/game.apk"
+
+    - name: Verify APK Exists
+      run: find . -name "*.apk"
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: |
+          project/**/build/android/game.apk
+          **/*.apk
